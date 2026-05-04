@@ -27,7 +27,7 @@ module.exports.config = {
 protectCredits(module.exports.config);
 
 // 🔑 GROQ API KEY
-const GROQ_API_KEY = "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"; 
+const GROQ_API_KEY = "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"; 
 
 // 🧠 TEMPORARY MEMORY
 const chatMemory = {};
