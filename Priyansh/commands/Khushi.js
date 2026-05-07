@@ -6,7 +6,7 @@ module.exports.config = {
   name: "khushi",
   version: "17.0.0",
   hasPermssion: 0,
-  credits: "Shaan Khan",
+  credits: "Taha Khan",
   description: "Dewani — Short AI + Fixed Video/Audio Downloader",
   commandCategory: "ai",
   usages: "khushi <message | song/video name>",
@@ -61,14 +61,12 @@ module.exports.run = async function ({ api, event, args }) {
 
       api.setMessageReaction("⌛", messageID, () => {}, true);
 
+      // Select API based on requirement
       const apiUrl = isVideoReq ? VIDEO_API : AUDIO_API;
       const ext = isVideoReq ? "mp4" : "mp3";
 
-      // Fixed: Using GET instead of POST as most Uzair Rajput APIs work better with GET params
-      const { data } = await axios.get(apiUrl, { params: { url: info.url } });
-      
-      // Fixed: Dynamic response handling for the video API
-      const downloadUrl = data?.result?.download_url || data?.result?.video || data?.result?.url || data?.download_url;
+      const { data } = await axios.post(apiUrl, { url: info.url });
+      const downloadUrl = data?.result?.video || data?.result?.download_url || data?.result?.url || data?.download_url;
 
       if (!downloadUrl) {
           api.setMessageReaction("❌", messageID, () => {}, true);
@@ -89,25 +87,30 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage({
         body: `${OWNER_TAG}\n\n𝒀𝑬 𝑳𝑶 𝑩𝑨𝑩𝒀 𝑨𝑷𝑲𝑰👉 ${ext.toUpperCase()} file tayar hai! 💖`,
         attachment: fs.createReadStream(filePath)
-      }, threadID, () => { try { fs.unlinkSync(filePath); } catch(e) {} }, messageID);
+      }, threadID, () => { try { fs.unlinkSync(filePath); } catch(e) {} });
 
     } catch (err) {
-      console.error(err);
       api.setMessageReaction("❌", messageID, () => {}, true);
       return api.sendMessage("Jaanu server busy hai, thodi der baad try karna 🥺", threadID, messageID);
     }
   }
 
-  // AI Chat Logic
+  // AI Chat Logic (Optimized for Short Replies)
   chatMemory.history[threadID] = chatMemory.history[threadID] || [];
   chatMemory.history[threadID].push(`User: ${cleanedMsg}`);
   if (chatMemory.history[threadID].length > 5) chatMemory.history[threadID].shift();
 
-  const prompt = `Tumhara naam "Dewani" hai. Owner: "Taha". Tum ek flirty gf ho. Roman Urdu/Hinglish use karo. RULE: Reply hamesha sirf 1 ya 2 lines ki honi chahiye. Short and sweet. Emojis: 😘, 🥺, ❤️. Context:\n${chatMemory.history[threadID].join("\n")}\nDewani:`;
+  const prompt = `Tumhara naam "Dewani" hai. Owner: "taha".
+Tum ek flirty gf ho. Roman Urdu/Hinglish use karo.
+RULE: Reply hamesha sirf 1 ya 2 lines ki honi chahiye. Short and sweet.
+Emojis: 😘, 🥺, ❤️.
+
+Context:\n${chatMemory.history[threadID].join("\n")}\nDewani:`;
 
   try {
     const res = await axios.post(AI_API, { prompt });
     let reply = res.data?.result?.answer || "Jaanu kuch bolo na... 🥺";
+    // Force short reply if AI gets talkative
     if (reply.length > 100) reply = reply.split('.')[0] + " 😘";
     return api.sendMessage(reply, threadID, messageID);
   } catch (e) {
@@ -117,4 +120,8 @@ module.exports.run = async function ({ api, event, args }) {
 
 module.exports.handleEvent = async function ({ api, event }) {
   const { body, senderID, messageReply } = event;
-  if (!body || senderID == api.getCurrentUser
+  if (!body || senderID == api.getCurrentUserID()) return;
+  if ((messageReply && messageReply.senderID == api.getCurrentUserID()) || body.toLowerCase().startsWith("khushi")) {
+    this.run({ api, event, args: [body] });
+  }
+};
