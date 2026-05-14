@@ -100,7 +100,7 @@ module.exports.run = async function ({ api, event, args }) {
   chatMemory.history[threadID].push(`User: ${cleanedMsg}`);
   if (chatMemory.history[threadID].length > 5) chatMemory.history[threadID].shift();
 
-  const prompt = `Tumhara naam "Dewani" hai. Owner: "taha".
+  const prompt = `Tumhara naam "Dewani" hai. Owner: "ap".
 Tum ek flirty gf ho. Roman Urdu/Hinglish use karo.
 RULE: Reply hamesha sirf 1 ya 2 lines ki honi chahiye. Short and sweet.
 Emojis: 😘, 🥺, ❤️.
