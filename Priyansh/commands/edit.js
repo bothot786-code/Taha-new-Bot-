@@ -1,76 +1,93 @@
 const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
 const FormData = require("form-data");
 
 module.exports.config = {
-  name: "edit",
-  version: "2.0.0",
+  name: "nano",
+  version: "1.0.0",
   hasPermssion: 0,
-  credits: "Shaan Khan",
-  description: "Edit images using Nano-Banana API",
-  commandCategory: "Media",
-  usages: "[prompt] - Reply to an image",
-  prefix: true,
-  cooldowns: 10
+  credits: "Shaan + ChatGPT",
+  description: "Nano Style AI Image Editor (ChatGPT)",
+  commandCategory: "ai",
+  usages: "[reply image] [prompt]",
+  cooldowns: 5
 };
 
-// Function to upload image to get CDN URL
-async function uploadToCDN(url) {
+const OPENAI_API_KEY = "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";
+
+module.exports.run = async function ({ api, event, args }) {
   try {
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const form = new FormData();
-    form.append('file', Buffer.from(response.data), { filename: 'image.jpg' });
-    form.append('type', 'permanent');
+    const prompt = args.join(" ");
 
-    const res = await axios.post('https://tmp.malvryx.dev/upload', form, { headers: form.getHeaders() });
-    return res.data?.cdnUrl || res.data?.directUrl;
-  } catch (e) {
-    return null;
-  }
-}
-
-module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID, messageReply } = event;
-  const prompt = args.join(" ");
-
-  if (!messageReply || !messageReply.attachments || messageReply.attachments[0].type !== "photo") {
-    return api.sendMessage("⚠️ Please reply to an image with your prompt.", threadID, messageID);
-  }
-  if (!prompt) return api.sendMessage("❌ Please provide an edit prompt!", threadID, messageID);
-
-  api.sendMessage("✨ Processing with Nano-Banana...", threadID, messageID);
-
-  try {
-    const imageUrl = await uploadToCDN(messageReply.attachments[0].url);
-    if (!imageUrl) throw new Error("Failed to upload image to server.");
-
-    // 1. Initiate Task
-    const initRes = await axios.get(`https://omegatech-api.dixonomega.tech/api/ai/nano-banana2?prompt=${encodeURIComponent(prompt)}&image=${encodeURIComponent(imageUrl)}`);
-    if (!initRes.data.success) throw new Error("Task initiation failed.");
-
-    const { task_id, fp } = initRes.data;
-
-    // 2. Poll for Result
-    let resultUrl = null;
-    for (let i = 0; i < 20; i++) {
-      await new Promise(r => setTimeout(r, 5000));
-      const check = await axios.get(`https://omegatech-api.dixonomega.tech/api/ai/nano-banana2-result?task_id=${task_id}${fp ? `&fp=${fp}` : ''}`);
-      if (check.data.status === 'completed') {
-        resultUrl = check.data.image_url;
-        break;
-      }
+    if (!event.messageReply?.attachments?.[0]) {
+      return api.sendMessage("❌ Kisi image ko reply karo.", event.threadID);
     }
 
-    if (!resultUrl) throw new Error("Generation timed out.");
+    if (!prompt) {
+      return api.sendMessage("❌ Prompt likho (example: make him a boy, change dress).", event.threadID);
+    }
 
-    // 3. Send Result
-    const imgBuffer = await axios.get(resultUrl, { responseType: 'arraybuffer' });
-    return api.sendMessage({
-      body: `✨ *EDIT SUCCESS*\n\n📝 Prompt: ${prompt}\n🚀 Powered by: taha Khan`,
-      attachment: Buffer.from(imgBuffer.data)
-    }, threadID);
+    const imgUrl = event.messageReply.attachments[0].url;
 
-  } catch (error) {
-    console.error(error);
-    api.sendMessage(`❌ Error: ${error.message}`, threadID, messageID);
+    api.sendMessage("🧠 Nano AI processing image...", event.threadID);
+
+    // download image
+    const imgPath = path.join(__dirname, "cache", `nano_${Date.now()}.png`);
+
+    const img = await axios.get(imgUrl, { responseType: "stream" });
+
+    await new Promise((res, rej) => {
+      const w = fs.createWriteStream(imgPath);
+      img.data.pipe(w);
+      w.on("finish", res);
+      w.on("error", rej);
+    });
+
+    // OpenAI Image Edit API
+    const form = new FormData();
+    form.append("image", fs.createReadStream(imgPath));
+    form.append("prompt", `
+      Edit this image in a realistic way.
+      Instruction: ${prompt}
+      Keep face identity same unless user requests transformation.
+    `);
+    form.append("model", "gpt-image-1");
+    form.append("size", "1024x1024");
+
+    const response = await axios.post(
+      "https://api.openai.com/v1/images/edits",
+      form,
+      {
+        headers: {
+          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          ...form.getHeaders()
+        }
+      }
+    );
+
+    const base64 = response.data.data[0].b64_json;
+    const outPath = path.join(__dirname, "cache", `nano_out_${Date.now()}.png`);
+
+    fs.writeFileSync(outPath, Buffer.from(base64, "base64"));
+
+    api.sendMessage(
+      {
+        body: `✨ Nano Edit Done!\n📝 Prompt: ${prompt}`,
+        attachment: fs.createReadStream(outPath)
+      },
+      event.threadID,
+      () => {
+        fs.unlinkSync(imgPath);
+        fs.unlinkSync(outPath);
+      }
+    );
+
+  } catch (err) {
+    console.log(err);
+    api.sendMessage(
+      `❌ Error: ${err.response?.data?.error?.message || err.message}`,
+      event.threadID
+    );
   }
 };
