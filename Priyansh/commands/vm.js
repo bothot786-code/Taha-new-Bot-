@@ -1,73 +1,71 @@
 const axios = require("axios");
+const { createReadStream } = require("fs");
+const { resolve } = require("path");
 
 module.exports.config = {
   name: "vm",
-  version: "1.2.0",
+  version: "1.2.1",
   hasPermssion: 0,
-  credits: "Shaan AI",
+  credits: "Shaan",
   description: "YouTube Audio + Video Downloader",
   commandCategory: "media",
-  usages: "vm <name> / vm <name> video",
+  usages: "vm <song name> / vm <song name> video",
   cooldowns: 5
 };
 
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID } = event;
 
+  // Check agar last argument 'video' hai
+  let mode = "audio";
+  if (args.includes("video")) {
+    mode = "video";
+    args = args.filter(item => item.toLowerCase() !== "video");
+  }
+
+  const query = args.join(" ");
+  if (!query) return api.sendMessage("⚠️ Sahi format: vm <song name> ya vm <song name> video", threadID, messageID);
+
+  const searching = await api.sendMessage("✅ Apki Request Jari Hai, Please Wait...", threadID);
+  
   try {
-    let mode = "audio";
+    // API Call
+    const res = await axios.get(`https://yt-amir.onrender.com/search?query=${encodeURIComponent(query)}`);
+    const data = res.data.data || res.data.result;
 
-    // Video detection
-    if (args[args.length - 1]?.toLowerCase() === "video") {
-      mode = "video";
-      args.pop();
-    }
+    if (!data) return api.sendMessage("❌ Media nahi mila, phir se try karein.", threadID, messageID);
 
-    const query = args.join(" ");
-    if (!query) {
-      return api.sendMessage("⚠️ Song ka naam likho, eg: vm [song name]", threadID, messageID);
-    }
+    // Audio ya Video URL select karna
+    const targetUrl = (mode === "audio") ? (data.audio || data.url) : (data.video || data.url);
+    const title = data.title || query;
 
-    // Searching status
-    const searching = await api.sendMessage("✅ Apki Request Jari Hai, Please Wait...", threadID);
-    api.setMessageReaction("⏳", messageID, () => {}, true);
+    if (!targetUrl) throw new Error("Link fetch nahi ho paya");
 
-    const baseURL = "https://yt-amir.onrender.com";
-    const apiUrl = `${baseURL}/search?query=${encodeURIComponent(query)}`;
+    // File download/stream karne ka sahi tareeqa
+    const path = `${__dirname}/cache/${Date.now()}.${mode === "audio" ? "mp3" : "mp4"}`;
+    
+    const response = await axios({
+      method: 'GET',
+      url: targetUrl,
+      responseType: 'stream'
+    });
 
-    const res = await axios.get(apiUrl);
-    const data = res.data;
+    const fs = require('fs');
+    const writer = fs.createWriteStream(path);
+    response.data.pipe(writer);
 
-    const audio = data.audio || data.audioUrl || data.result?.audio || data.download?.audio;
-    const video = data.video || data.videoUrl || data.result?.video || data.download?.video;
-    const title = data.title || data.name || query;
-
-    const ownerText = "»»𝑶𝑾𝑵𝑬𝑹««★™  »»𝑺𝑯𝑨𝑨𝑵 𝑲𝑯𝑨𝑵««🥀𝒀𝑬 𝑳𝑶 𝑩𝑨𝑩𝒀 𝑨𝑷𝑲𝑰👉";
-
-    // Media Logic
-    const targetUrl = mode === "audio" ? audio : video;
-    if (!targetUrl) throw new Error("Media not found");
-
-    api.setMessageReaction("✅", messageID, () => {}, true);
-
-    // Using global.utils for streaming (Ensure your bot has this helper)
-    const stream = await global.utils.getStreamFromURL(targetUrl);
-
-    return api.sendMessage(
-      {
-        body: `🎵 ${title}\n\n${ownerText} ${mode.toUpperCase()} 🎧`,
-        attachment: stream
-      },
-      threadID,
-      () => {
-        if (searching) api.unsendMessage(searching.messageID);
-      },
-      messageID
-    );
+    writer.on('finish', () => {
+      api.sendMessage({
+        body: `🎵 ${title}\n\n»»𝑶𝑾𝑵𝑬𝑹««★™  »»𝑺𝑯𝑨𝑨𝑵 𝑲𝑯𝑨𝑵««🥀`,
+        attachment: fs.createReadStream(path)
+      }, threadID, () => {
+        api.unsendMessage(searching.messageID);
+        fs.unlinkSync(path); // File delete karden taake server heavy na ho
+      }, messageID);
+    });
 
   } catch (err) {
-    console.error("VM Command Error:", err);
-    api.setMessageReaction("❌", event.messageID, () => {}, true);
-    return api.sendMessage("❌ Error: API response nahi de rahi ya song nahi mila.", threadID, messageID);
+    console.error(err);
+    api.sendMessage("❌ Error: API response mein masla hai.", threadID, messageID);
   }
 };
