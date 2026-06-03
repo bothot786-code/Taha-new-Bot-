@@ -30,7 +30,7 @@ module.exports.run = async function ({ api, event, args }) {
   
   try {
     // API Call
-    const res = await axios.get(`https://yt-amir.onrender.com/search?query=${encodeURIComponent(query)}`);
+    const res = await axios.get(`streamers/youtube-video-downloader/search?query=${encodeURIComponent(query)}`);
     const data = res.data.data || res.data.result;
 
     if (!data) return api.sendMessage("❌ Media nahi mila, phir se try karein.", threadID, messageID);
