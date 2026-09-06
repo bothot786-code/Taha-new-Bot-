@@ -1,7 +1,6 @@
 const { spawn } = require("child_process");
 const axios = require("axios");
 const logger = require("./utils/log");
-const login = require("./fca.js");
 
 ///////////////////////////////////////////////////////////
 //========= Create website for dashboard/uptime =========//
