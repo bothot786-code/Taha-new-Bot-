@@ -3,10 +3,7 @@
   "version": "10.1.1",
   "description": "𝐀 𝐒𝐈𝐌𝐏𝐋𝐄 𝐌𝐄𝐒𝐒𝐄𝐍𝐆𝐄𝐑 𝐁𝐎𝐓  𝐌𝐀𝐃𝐄 𝐁𝐘 𝐒𝐇𝐀𝐀𝐍 𝐊𝐇𝐀𝐍 💚✨",
   "main": "Shaan-Khan-K.js",
-  "dependencies": {
-  "fca-project-easy": "git+https://github.com/SAAN-GOATBOT/fca-project-easy.git"
-  }
-  "engines": {
+  "fca-project-easy"
     "node": "20.x",
     "npm": "10.0.0"
   },
